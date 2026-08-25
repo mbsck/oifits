@@ -1107,292 +1107,11 @@ class oifits(object):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    def isvalid(self):
-        """Returns True if the oifits object is both consistent (as
-        determined by isconsistent()) and conforms to the OIFITS
-        standard (according to Pauls et al., 2005, PASP, 117, 1255)."""
-
-        warnings = []
-        errors = []
-        if not self.isconsistent():
-            errors.append('oifits object is not consistent')
-        if not self.target.size:
-            errors.append('No OI_TARGET data')
-        if not self.wavelength:
-            errors.append('No OI_WAVELENGTH data')
-        else:
-            for key, wavelength in self.wavelength.items():
-                if len(wavelength.eff_wave) != len(wavelength.eff_band):
-                    errors.append("eff_wave and eff_band are of different lengths for wavelength table '%s'"%key)
-        for key, corr in self.corr.items():
-            ndata = len(corr.iindx)
-            if (len(corr.jindx) != ndata) or (len(corr.corr) != ndata):
-                errors.append("Number of indices/elements not consistent in correlation table '%s'"%key)
-        if (self.vis.size + self.vis2.size + self.t3.size + self.flux.size == 0):
-            errors.append('Need to have atleast one measurement table (vis, vis2, t3, flux)')
-        for vis in self.vis:
-            nwave = len(vis.wavelength.eff_band)
-            if (len(vis.visamp) != nwave) or (len(vis.visamperr) != nwave) or (len(vis.visphi) != nwave) or (len(vis.visphierr) != nwave) or (len(vis.flag) != nwave):
-                errors.append("Data size mismatch for visibility measurement 0x%x (wavelength table has a length of %d)"%(id(vis), nwave))
-        for vis2 in self.vis2:
-            nwave = len(vis2.wavelength.eff_band)
-            if (len(vis2.vis2data) != nwave) or (len(vis2.vis2err) != nwave) or (len(vis2.flag) != nwave):
-                errors.append("Data size mismatch for visibility^2 measurement 0x%x (wavelength table has a length of %d)"%(id(vis), nwave))
-        for t3 in self.t3:
-            nwave = len(t3.wavelength.eff_band)
-            if (len(t3.t3amp) != nwave) or (len(t3.t3amperr) != nwave) or (len(t3.t3phi) != nwave) or (len(t3.t3phierr) != nwave) or (len(t3.flag) != nwave):
-                errors.append("Data size mismatch for t3 measurement 0x%x (wavelength table has a length of %d)"%(id(t3), nwave))
-        for flux in self.flux:
-            nwave = len(flux.wavelength.eff_band)
-            if (len(flux.fluxdata) != nwave) or (len(flux.fluxerr) != nwave) or (len(flux.flag) != nwave):
-                errors.append("Data size mismatch for flux measurement 0x%x (wavelength table has a length of %d)"%(id(flux), nwave))
-        for inspol in self.inspol:
-            nwave = len(inspol.wavelength.eff_band)
-            if (len(inspol.jxx) != nwave) or (len(inspol.jyy) != nwave) or (len(inspol.jxy) != nwave) or (len(inspol.jyx) != nwave):
-                errors.append("Data size mismatch for inspol measurement 0x%x (wavelength table has a length of %d)"%(id(flux), nwave))
-
-        if warnings:
-            print("*** %d warning%s:"%(len(warnings), _plurals(len(warnings))))
-            for warning in warnings:
-                print('  ' + warning)
-        if errors:
-            print("*** %d ERROR%s:"%(len(errors), _plurals(len(errors)).upper()))
-            for error in errors:
-                print('  ' + error)
-
-        return not (len(warnings) or len(errors))
-
-    def isconsistent(self):
-        """Returns True if the object is entirely self-contained,
-        i.e. all cross-references to wavelength tables, arrays,
-        stations etc. in the measurements refer to elements which are
-        stored in the oifits object.  Note that an oifits object can
-        be 'consistent' in this sense without being 'valid' as checked
-        by isvalid()."""
-
-        for vis in self.vis:
-            if vis.array and (vis.array not in self.array.values()):
-                print('A visibility measurement (0x%x) refers to an array which is not inside the main oifits object.'%id(vis))
-                return False
-            if ((vis.station[0] and (vis.station[0] not in vis.array.station)) or
-                (vis.station[1] and (vis.station[1] not in vis.array.station))):
-                print('A visibility measurement (0x%x) refers to a station which is not inside the main oifits object.'%id(vis))
-                return False
-            if vis.wavelength not in self.wavelength.values():
-                print('A visibility measurement (0x%x) refers to a wavelength table which is not inside the main oifits object.'%id(vis))
-                return False
-            if vis.revision >= 2 and vis.corr and (vis.corr not in self.corr.values()):
-                print('A visibility measurement (0x%x) refers to a correlation table which is not inside the main oifits object.'%id(vis))
-                return False
-            if vis.target not in self.target:
-                print('A visibility measurement (0x%x) refers to a target which is not inside the main oifits object.'%id(vis))
-                return False
-
-        for vis2 in self.vis2:
-            if vis2.array and (vis2.array not in self.array.values()):
-                print('A visibility^2 measurement (0x%x) refers to an array which is not inside the main oifits object.'%id(vis2))
-                return False
-            if ((vis2.station[0] and (vis2.station[0] not in vis2.array.station)) or
-                (vis2.station[1] and (vis2.station[1] not in vis2.array.station))):
-                print('A visibility^2 measurement (0x%x) refers to a station which is not inside the main oifits object.'%id(vis))
-                return False
-            if vis2.wavelength not in self.wavelength.values():
-                print('A visibility^2 measurement (0x%x) refers to a wavelength table which is not inside the main oifits object.'%id(vis2))
-                return False
-            if vis2.revision >= 2 and vis2.corr and (vis2.corr not in self.corr.values()):
-                print('A visibility^2 measurement (0x%x) refers to a correlation table which is not inside the main oifits object.'%id(vis2))
-                return False
-            if vis2.target not in self.target:
-                print('A visibility^2 measurement (0x%x) refers to a target which is not inside the main oifits object.'%id(vis2))
-                return False
-
-        for t3 in self.t3:
-            if t3.array and (t3.array not in self.array.values()):
-                print('A closure phase measurement (0x%x) refers to an array which is not inside the main oifits object.'%id(t3))
-                return False
-            if ((t3.station[0] and (t3.station[0] not in t3.array.station)) or
-                (t3.station[1] and (t3.station[1] not in t3.array.station)) or
-                (t3.station[2] and (t3.station[2] not in t3.array.station))):
-                print('A closure phase measurement (0x%x) refers to a station which is not inside the main oifits object.'%id(t3))
-                return False
-            if t3.wavelength not in self.wavelength.values():
-                print('A closure phase measurement (0x%x) refers to a wavelength table which is not inside the main oifits object.'%id(t3))
-                return False
-            if t3.revision >= 2 and t3.corr and (t3.corr not in self.corr.values()):
-                print('A closure phase measurement (0x%x) refers to a correlation table which is not inside the main oifits object.'%id(t3))
-                return False
-            if t3.target not in self.target:
-                print('A closure phase measurement (0x%x) refers to a target which is not inside the main oifits object.'%id(t3))
-                return False
-
-        for flux in self.flux:
-            if flux.array and (flux.array not in self.array.values()):
-                print('A flux measurement (0x%x) refers to an array which is not inside the main oifits object.'%id(flux))
-                return False
-            if flux.station and (flux.station not in flux.array.station):
-                print('A flux measurement (0x%x) refers to a station which is not inside the main oifits object.'%id(flux))
-                return False
-            if flux.wavelength not in self.wavelength.values():
-                print('A flux measurement (0x%x) refers to a wavelength table which is not inside the main oifits object.'%id(flux))
-                return False
-            if flux.corr and (flux.corr not in self.corr.values()):
-                print('A flux measurement (0x%x) refers to a correlation table which is not inside the main oifits object.'%id(flux))
-                return False
-            if flux.target not in self.target:
-                print('A flux measurement (0x%x) refers to a target which is not inside the main oifits object.'%id(flux))
-                return False
-
-        for inspol in self.inspol:
-            if inspol.array not in self.array.values():
-                print('An inspol measurement (0x%x) refers to an array which is not inside the main oifits object.'%id(inspol))
-                return False
-            if inspol.station not in inspol.array.station:
-                print('An inspol measurement (0x%x) refers to a station which is not inside the main oifits object.'%id(inspol))
-                return False
-            if inspol.wavelength not in self.wavelength.values():
-                print('An inspol measurement (0x%x) refers to a wavelength table which is not inside the main oifits object.'%id(inspol))
-                return False
-            if inspol.target not in self.target:
-                print('An inspol measurement (0x%x) refers to a target which is not inside the main oifits object.'%id(inspol))
-                return False
-
-        return True
-
-    def getoifitsver(self):
-        """Get the minimum OIFITS "version" of the object.  This is based on
-        revision numbers of the individual tables, and the presence or absence
-        of some tables (e.g. OI_INSPOL, OI_CORR, OI_FLUX.
-
-        As of now (Jan 2021) returns only 1 or 2. A version of "1" means there
-        are no OIFITS2 tables present; a verision of "2" means there is at
-        least one OIFITS2 table present."""
-
-        for wavelength in self.wavelength.values():
-            if wavelength.revision >= 2:
-                return 2
-
-        for target in self.target:
-            if target.revision >= 2:
-                return 2
-
-        for array in self.array.values():
-            if array.revision >= 2:
-                return 2
-
-        for vis in self.vis:
-            if vis.revision >= 2:
-                return 2
-
-        for vis2 in self.vis2:
-            if vis2.revision >= 2:
-                return 2
-
-        for t3 in self.t3:
-            if t3.revision >= 2:
-                return 2
-
-        if len(self.corr) or len(self.flux) or len(self.inspol):
-            return 2
-
-        return 1
-
-    def info(self, recursive=True, verbose=0):
-        """Print out a summary of the contents of the oifits object.
-        Set recursive=True to obtain more specific information about
-        each of the individual components, and verbose to an integer
-        to increase the verbosity level."""
-
-        if self.wavelength:
-            wavelengths = 0
-            if recursive:
-                print("====================================================================")
-                print("SUMMARY OF WAVELENGTH TABLES")
-                print("====================================================================")
-            for key in self.wavelength.keys():
-                wavelengths += len(self.wavelength[key].eff_wave)
-                if recursive: print("'%s': %s"%(key, str(self.wavelength[key])))
-            print("%d wavelength table%s with %d wavelength%s in total"%(len(self.wavelength), _plurals(len(self.wavelength)), wavelengths, _plurals(wavelengths)))
-        if self.corr:
-            corrs = 0
-            if recursive:
-                print("====================================================================")
-                print("SUMMARY OF CORRELATION TABLES")
-                print("====================================================================")
-            for key in self.corr.keys():
-                corrs += len(self.corr[key].corr)
-                if recursive: print("'%s': %s"%(key, str(self.corr[key])))
-            print("%d correlation table%s with %d matrix element%s in total"%(len(self.corr), _plurals(len(self.corr)), corrs, _plurals(corrs)))
-        if self.target.size:
-            if recursive:
-                print("====================================================================")
-                print("SUMMARY OF TARGET TABLES")
-                print("====================================================================")
-                for target in self.target:
-                    target.info()
-            print("%d target%s"%(len(self.target), _plurals(len(self.target))))
-        if self.array:
-            stations = 0
-            if recursive:
-                print("====================================================================")
-                print("SUMMARY OF ARRAY TABLES")
-                print("====================================================================")
-            for key in self.array.keys():
-                if recursive:
-                    print(key + ':')
-                    self.array[key].info(verbose=verbose)
-                stations += len(self.array[key].station)
-            print("%d array%s with %d station%s"%(len(self.array), _plurals(len(self.array)), stations, _plurals(stations)))
-        if self.vis.size:
-            if recursive:
-                print("====================================================================")
-                print("SUMMARY OF VISIBILITY MEASUREMENTS")
-                print("====================================================================")
-                for vis in self.vis:
-                    vis.info()
-            print("%d visibility measurement%s"%(len(self.vis), _plurals(len(self.vis))))
-        if self.vis2.size:
-            if recursive:
-                print("====================================================================")
-                print("SUMMARY OF VISIBILITY^2 MEASUREMENTS")
-                print("====================================================================")
-                for vis2 in self.vis2:
-                    vis2.info()
-            print("%d visibility^2 measurement%s"%(len(self.vis2), _plurals(len(self.vis2))))
-        if self.t3.size:
-            if recursive:
-                print("====================================================================")
-                print("SUMMARY OF T3 MEASUREMENTS")
-                print("====================================================================")
-                for t3 in self.t3:
-                    t3.info()
-            print("%d closure phase measurement%s"%(len(self.t3), _plurals(len(self.t3))))
-        if self.flux.size:
-            if recursive:
-                print("====================================================================")
-                print("SUMMARY OF FLUX MEASUREMENTS")
-                print("====================================================================")
-                for flux in self.flux:
-                    flux.info()
-            print("%d flux measurement%s"%(len(self.flux), _plurals(len(self.flux))))
-        if self.inspol.size:
-            if recursive:
-                print("====================================================================")
-                print("SUMMARY OF INSPOL MEASUREMENTS")
-                print("====================================================================")
-                for inspol in self.inspol:
-                    inspol.info()
-            print("%d inspol measurement%s"%(len(self.inspol), _plurals(len(self.inspol))))
-
-    def save(self, filename, overwrite=False, checksum=True):
-        """Write the contents of the oifits object to a file in OIFITS
-        format."""
-
+    @property
+    def hdul(self) -> fits.HDUList:
         # Extvers which are automatically incremented as HDUs are written
         extvers = {'OI_WAVELENGTH':1, 'OI_CORR':1, 'OI_TARGET':1, 'OI_ARRAY':1,
                    'OI_VIS':1, 'OI_VIS2':1, 'OI_T3':1, 'OI_FLUX':1}
-
-        if not self.isconsistent():
-            raise ValueError('oifits object is not consistent; refusing to go further')
 
         hdulist = fits.HDUList()
         hdu = fits.PrimaryHDU(header=self.header)
@@ -1907,7 +1626,291 @@ class oifits(object):
                 else: hdr['CALSTAT'] = 'U', 'Calibration status'
                 hdulist.append(hdu)
 
-        hdulist.writeto(filename, overwrite=overwrite, checksum=checksum)
+        return hdulist
+
+    def isvalid(self):
+        """Returns True if the oifits object is both consistent (as
+        determined by isconsistent()) and conforms to the OIFITS
+        standard (according to Pauls et al., 2005, PASP, 117, 1255)."""
+
+        warnings = []
+        errors = []
+        if not self.isconsistent():
+            errors.append('oifits object is not consistent')
+        if not self.target.size:
+            errors.append('No OI_TARGET data')
+        if not self.wavelength:
+            errors.append('No OI_WAVELENGTH data')
+        else:
+            for key, wavelength in self.wavelength.items():
+                if len(wavelength.eff_wave) != len(wavelength.eff_band):
+                    errors.append("eff_wave and eff_band are of different lengths for wavelength table '%s'"%key)
+        for key, corr in self.corr.items():
+            ndata = len(corr.iindx)
+            if (len(corr.jindx) != ndata) or (len(corr.corr) != ndata):
+                errors.append("Number of indices/elements not consistent in correlation table '%s'"%key)
+        if (self.vis.size + self.vis2.size + self.t3.size + self.flux.size == 0):
+            errors.append('Need to have atleast one measurement table (vis, vis2, t3, flux)')
+        for vis in self.vis:
+            nwave = len(vis.wavelength.eff_band)
+            if (len(vis.visamp) != nwave) or (len(vis.visamperr) != nwave) or (len(vis.visphi) != nwave) or (len(vis.visphierr) != nwave) or (len(vis.flag) != nwave):
+                errors.append("Data size mismatch for visibility measurement 0x%x (wavelength table has a length of %d)"%(id(vis), nwave))
+        for vis2 in self.vis2:
+            nwave = len(vis2.wavelength.eff_band)
+            if (len(vis2.vis2data) != nwave) or (len(vis2.vis2err) != nwave) or (len(vis2.flag) != nwave):
+                errors.append("Data size mismatch for visibility^2 measurement 0x%x (wavelength table has a length of %d)"%(id(vis), nwave))
+        for t3 in self.t3:
+            nwave = len(t3.wavelength.eff_band)
+            if (len(t3.t3amp) != nwave) or (len(t3.t3amperr) != nwave) or (len(t3.t3phi) != nwave) or (len(t3.t3phierr) != nwave) or (len(t3.flag) != nwave):
+                errors.append("Data size mismatch for t3 measurement 0x%x (wavelength table has a length of %d)"%(id(t3), nwave))
+        for flux in self.flux:
+            nwave = len(flux.wavelength.eff_band)
+            if (len(flux.fluxdata) != nwave) or (len(flux.fluxerr) != nwave) or (len(flux.flag) != nwave):
+                errors.append("Data size mismatch for flux measurement 0x%x (wavelength table has a length of %d)"%(id(flux), nwave))
+        for inspol in self.inspol:
+            nwave = len(inspol.wavelength.eff_band)
+            if (len(inspol.jxx) != nwave) or (len(inspol.jyy) != nwave) or (len(inspol.jxy) != nwave) or (len(inspol.jyx) != nwave):
+                errors.append("Data size mismatch for inspol measurement 0x%x (wavelength table has a length of %d)"%(id(flux), nwave))
+
+        if warnings:
+            print("*** %d warning%s:"%(len(warnings), _plurals(len(warnings))))
+            for warning in warnings:
+                print('  ' + warning)
+        if errors:
+            print("*** %d ERROR%s:"%(len(errors), _plurals(len(errors)).upper()))
+            for error in errors:
+                print('  ' + error)
+
+        return not (len(warnings) or len(errors))
+
+    def isconsistent(self):
+        """Returns True if the object is entirely self-contained,
+        i.e. all cross-references to wavelength tables, arrays,
+        stations etc. in the measurements refer to elements which are
+        stored in the oifits object.  Note that an oifits object can
+        be 'consistent' in this sense without being 'valid' as checked
+        by isvalid()."""
+
+        for vis in self.vis:
+            if vis.array and (vis.array not in self.array.values()):
+                print('A visibility measurement (0x%x) refers to an array which is not inside the main oifits object.'%id(vis))
+                return False
+            if ((vis.station[0] and (vis.station[0] not in vis.array.station)) or
+                (vis.station[1] and (vis.station[1] not in vis.array.station))):
+                print('A visibility measurement (0x%x) refers to a station which is not inside the main oifits object.'%id(vis))
+                return False
+            if vis.wavelength not in self.wavelength.values():
+                print('A visibility measurement (0x%x) refers to a wavelength table which is not inside the main oifits object.'%id(vis))
+                return False
+            if vis.revision >= 2 and vis.corr and (vis.corr not in self.corr.values()):
+                print('A visibility measurement (0x%x) refers to a correlation table which is not inside the main oifits object.'%id(vis))
+                return False
+            if vis.target not in self.target:
+                print('A visibility measurement (0x%x) refers to a target which is not inside the main oifits object.'%id(vis))
+                return False
+
+        for vis2 in self.vis2:
+            if vis2.array and (vis2.array not in self.array.values()):
+                print('A visibility^2 measurement (0x%x) refers to an array which is not inside the main oifits object.'%id(vis2))
+                return False
+            if ((vis2.station[0] and (vis2.station[0] not in vis2.array.station)) or
+                (vis2.station[1] and (vis2.station[1] not in vis2.array.station))):
+                print('A visibility^2 measurement (0x%x) refers to a station which is not inside the main oifits object.'%id(vis))
+                return False
+            if vis2.wavelength not in self.wavelength.values():
+                print('A visibility^2 measurement (0x%x) refers to a wavelength table which is not inside the main oifits object.'%id(vis2))
+                return False
+            if vis2.revision >= 2 and vis2.corr and (vis2.corr not in self.corr.values()):
+                print('A visibility^2 measurement (0x%x) refers to a correlation table which is not inside the main oifits object.'%id(vis2))
+                return False
+            if vis2.target not in self.target:
+                print('A visibility^2 measurement (0x%x) refers to a target which is not inside the main oifits object.'%id(vis2))
+                return False
+
+        for t3 in self.t3:
+            if t3.array and (t3.array not in self.array.values()):
+                print('A closure phase measurement (0x%x) refers to an array which is not inside the main oifits object.'%id(t3))
+                return False
+            if ((t3.station[0] and (t3.station[0] not in t3.array.station)) or
+                (t3.station[1] and (t3.station[1] not in t3.array.station)) or
+                (t3.station[2] and (t3.station[2] not in t3.array.station))):
+                print('A closure phase measurement (0x%x) refers to a station which is not inside the main oifits object.'%id(t3))
+                return False
+            if t3.wavelength not in self.wavelength.values():
+                print('A closure phase measurement (0x%x) refers to a wavelength table which is not inside the main oifits object.'%id(t3))
+                return False
+            if t3.revision >= 2 and t3.corr and (t3.corr not in self.corr.values()):
+                print('A closure phase measurement (0x%x) refers to a correlation table which is not inside the main oifits object.'%id(t3))
+                return False
+            if t3.target not in self.target:
+                print('A closure phase measurement (0x%x) refers to a target which is not inside the main oifits object.'%id(t3))
+                return False
+
+        for flux in self.flux:
+            if flux.array and (flux.array not in self.array.values()):
+                print('A flux measurement (0x%x) refers to an array which is not inside the main oifits object.'%id(flux))
+                return False
+            if flux.station and (flux.station not in flux.array.station):
+                print('A flux measurement (0x%x) refers to a station which is not inside the main oifits object.'%id(flux))
+                return False
+            if flux.wavelength not in self.wavelength.values():
+                print('A flux measurement (0x%x) refers to a wavelength table which is not inside the main oifits object.'%id(flux))
+                return False
+            if flux.corr and (flux.corr not in self.corr.values()):
+                print('A flux measurement (0x%x) refers to a correlation table which is not inside the main oifits object.'%id(flux))
+                return False
+            if flux.target not in self.target:
+                print('A flux measurement (0x%x) refers to a target which is not inside the main oifits object.'%id(flux))
+                return False
+
+        for inspol in self.inspol:
+            if inspol.array not in self.array.values():
+                print('An inspol measurement (0x%x) refers to an array which is not inside the main oifits object.'%id(inspol))
+                return False
+            if inspol.station not in inspol.array.station:
+                print('An inspol measurement (0x%x) refers to a station which is not inside the main oifits object.'%id(inspol))
+                return False
+            if inspol.wavelength not in self.wavelength.values():
+                print('An inspol measurement (0x%x) refers to a wavelength table which is not inside the main oifits object.'%id(inspol))
+                return False
+            if inspol.target not in self.target:
+                print('An inspol measurement (0x%x) refers to a target which is not inside the main oifits object.'%id(inspol))
+                return False
+
+        return True
+
+    def getoifitsver(self):
+        """Get the minimum OIFITS "version" of the object.  This is based on
+        revision numbers of the individual tables, and the presence or absence
+        of some tables (e.g. OI_INSPOL, OI_CORR, OI_FLUX.
+
+        As of now (Jan 2021) returns only 1 or 2. A version of "1" means there
+        are no OIFITS2 tables present; a verision of "2" means there is at
+        least one OIFITS2 table present."""
+
+        for wavelength in self.wavelength.values():
+            if wavelength.revision >= 2:
+                return 2
+
+        for target in self.target:
+            if target.revision >= 2:
+                return 2
+
+        for array in self.array.values():
+            if array.revision >= 2:
+                return 2
+
+        for vis in self.vis:
+            if vis.revision >= 2:
+                return 2
+
+        for vis2 in self.vis2:
+            if vis2.revision >= 2:
+                return 2
+
+        for t3 in self.t3:
+            if t3.revision >= 2:
+                return 2
+
+        if len(self.corr) or len(self.flux) or len(self.inspol):
+            return 2
+
+        return 1
+
+    def info(self, recursive=True, verbose=0):
+        """Print out a summary of the contents of the oifits object.
+        Set recursive=True to obtain more specific information about
+        each of the individual components, and verbose to an integer
+        to increase the verbosity level."""
+
+        if self.wavelength:
+            wavelengths = 0
+            if recursive:
+                print("====================================================================")
+                print("SUMMARY OF WAVELENGTH TABLES")
+                print("====================================================================")
+            for key in self.wavelength.keys():
+                wavelengths += len(self.wavelength[key].eff_wave)
+                if recursive: print("'%s': %s"%(key, str(self.wavelength[key])))
+            print("%d wavelength table%s with %d wavelength%s in total"%(len(self.wavelength), _plurals(len(self.wavelength)), wavelengths, _plurals(wavelengths)))
+        if self.corr:
+            corrs = 0
+            if recursive:
+                print("====================================================================")
+                print("SUMMARY OF CORRELATION TABLES")
+                print("====================================================================")
+            for key in self.corr.keys():
+                corrs += len(self.corr[key].corr)
+                if recursive: print("'%s': %s"%(key, str(self.corr[key])))
+            print("%d correlation table%s with %d matrix element%s in total"%(len(self.corr), _plurals(len(self.corr)), corrs, _plurals(corrs)))
+        if self.target.size:
+            if recursive:
+                print("====================================================================")
+                print("SUMMARY OF TARGET TABLES")
+                print("====================================================================")
+                for target in self.target:
+                    target.info()
+            print("%d target%s"%(len(self.target), _plurals(len(self.target))))
+        if self.array:
+            stations = 0
+            if recursive:
+                print("====================================================================")
+                print("SUMMARY OF ARRAY TABLES")
+                print("====================================================================")
+            for key in self.array.keys():
+                if recursive:
+                    print(key + ':')
+                    self.array[key].info(verbose=verbose)
+                stations += len(self.array[key].station)
+            print("%d array%s with %d station%s"%(len(self.array), _plurals(len(self.array)), stations, _plurals(stations)))
+        if self.vis.size:
+            if recursive:
+                print("====================================================================")
+                print("SUMMARY OF VISIBILITY MEASUREMENTS")
+                print("====================================================================")
+                for vis in self.vis:
+                    vis.info()
+            print("%d visibility measurement%s"%(len(self.vis), _plurals(len(self.vis))))
+        if self.vis2.size:
+            if recursive:
+                print("====================================================================")
+                print("SUMMARY OF VISIBILITY^2 MEASUREMENTS")
+                print("====================================================================")
+                for vis2 in self.vis2:
+                    vis2.info()
+            print("%d visibility^2 measurement%s"%(len(self.vis2), _plurals(len(self.vis2))))
+        if self.t3.size:
+            if recursive:
+                print("====================================================================")
+                print("SUMMARY OF T3 MEASUREMENTS")
+                print("====================================================================")
+                for t3 in self.t3:
+                    t3.info()
+            print("%d closure phase measurement%s"%(len(self.t3), _plurals(len(self.t3))))
+        if self.flux.size:
+            if recursive:
+                print("====================================================================")
+                print("SUMMARY OF FLUX MEASUREMENTS")
+                print("====================================================================")
+                for flux in self.flux:
+                    flux.info()
+            print("%d flux measurement%s"%(len(self.flux), _plurals(len(self.flux))))
+        if self.inspol.size:
+            if recursive:
+                print("====================================================================")
+                print("SUMMARY OF INSPOL MEASUREMENTS")
+                print("====================================================================")
+                for inspol in self.inspol:
+                    inspol.info()
+            print("%d inspol measurement%s"%(len(self.inspol), _plurals(len(self.inspol))))
+
+    def save(self, filename, overwrite=False, checksum=True):
+        """Write the contents of the oifits object to a file in OIFITS
+        format."""
+        if not self.isconsistent():
+            raise ValueError('oifits object is not consistent; refusing to go further')
+
+        self.hdul.writeto(filename, overwrite=overwrite, checksum=checksum)
 
 
 
